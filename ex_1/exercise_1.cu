@@ -7,24 +7,24 @@
  * of the format `Hello World! My threadId is x` where x is the the threadId of
  * the thread found by thread indexing.
  */
-__global__ void hello_world_kernel() {
+__global__ void helloWorldKernel() {
 
 	// Calculate a unique ID for the currently running thread by using its
 	// index within a block plus an offset of number of threads before the
 	// current block (blockIdx.x * blockDim.x)
-	int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+	int threadId = blockIdx.x * blockDim.x + threadIdx.x;
 	
 	// Print a message of format 'Hello World! My threadId is x' where x is
 	// thread_id
-	printf("Hello World! My threadId is %d\n", thread_id);
+	printf("Hello World! My threadId is %d\n", threadId);
 }
 
 // Entry point into the program, initiate kernel launch
 int main() {
 
-	// Run the hello_world_kernel function on device using N / TPB thread
+	// Run the helloWorldKernel function on device using N / TPB thread
 	// blocks of TPB threads PER block
-	hello_world_kernel <<<(N / TPB), TPB>>> ();
+	helloWorldKernel <<<(N / TPB), TPB>>> ();
 
 	// CRUCIAL! Make execution of the kernel synchronous so that the CPU waits
 	// for all threads in the grid to complete before finishing the program.
