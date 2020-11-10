@@ -1,6 +1,6 @@
 #include <stdio.h>			// For use of the printf function
 #include <sys/time.h>		// For use of gettimeofday function
-#define A 77				// Constant A to be used in SAXPY computations
+#define A 77.0f				// Constant A to be used in SAXPY computations
 #define ARRAY_SIZE 10000	// Size of arrays to be used in SAXPY computations
 #define TPB 256				// Threads PER block
 
@@ -60,16 +60,17 @@ void compareSaxpyResults(float *deviceOut, float *hostOut, int n) {
 	for (int index = 0; index < n; index++) {
 		float diff = deviceOut[index] - hostOut[index];
 
-		// Difference is larger than rounding-error tolerance of .01, means
+		// Difference is larger than rounding-error tolerance of .1, means
 		// the outcomes are too different
-		if (diff > .01 || diff < -.01) {
+		if (diff > .1 || diff < -.1) {
 			resultsAreEqual = false;
+			break;
 		}
 	}
 
 	// The outcomes of SAXPY for the device and host implementations are equal
 	if (resultsAreEqual) {
-		printf("Correct!\n")
+		printf("Correct!\n");
 	} else {
 		printf("INCORRECT!!!\n");
 	}
@@ -82,8 +83,10 @@ void compareSaxpyResults(float *deviceOut, float *hostOut, int n) {
  * @param n		Number of floats to populate the array with.
  */
 void populateArrayWithFloats(float *array, int n) {
-	for (int index = 0; index < 0; index++) {
-		array[index] = (float) rand();
+	for (int index = 0; index < n; index++) {
+
+		// Generate random floats in the range -10,000 to 10,000
+		array[index] = 10000.0 * ((float) rand() / (float) RAND_MAX);
 	}
 }
 
@@ -114,7 +117,7 @@ int main() {
 
 	// Copy hostX and hostY onto the GPU
 	cudaMemcpy(devX, hostX, ARRAY_SIZE * sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(devY, hostX, ARRAY_SIZE * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(devY, hostY, ARRAY_SIZE * sizeof(float), cudaMemcpyHostToDevice);
 
 	printf("Computing SAXPY on the CPU... ");
 	double startTime = cpuSecond();
