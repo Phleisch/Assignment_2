@@ -1,3 +1,6 @@
+#include <stdio.h>			// For use of the printf function
+#include <sys/time.h>		// For use of gettimeofday function
+
 #define NUM_ITERATIONS 10000
 #define ABS(a) ((a) < 0 ? -(a) : (a))
 #define DT 1
@@ -17,46 +20,46 @@ typedef struct {
 
 
 __device__ void updatePosition(Particle *particle) {
-  particle->position.x = particle.position.x + particle.velocity.x * DT;
-  particle->position.y = particle.position.y + particle.velocity.y * DT;
-  particle->position.z = particle.position.z + particle.velocity.z * DT;
+  particle->position.x = particle->position.x + particle->velocity.x * DT;
+  particle->position.y = particle->position.y + particle->velocity.y * DT;
+  particle->position.z = particle->position.z + particle->velocity.z * DT;
 }
 
 __host__ void updatePositionHost(Particle *particle) {
-  particle->position.x = particle.position.x + particle.velocity.x * DT;
-  particle->position.y = particle.position.y + particle.velocity.y * DT;
-  particle->position.z = particle.position.z + particle.velocity.z * DT;
+  particle->position.x = particle->position.x + particle->velocity.x * DT;
+  particle->position.y = particle->position.y + particle->velocity.y * DT;
+  particle->position.z = particle->position.z + particle->velocity.z * DT;
 }
 
-__device__ void updateVelocity(Particle *particle) {
-  particle->velocity.x = particle.velocity.x + field.x * DT;
-  particle->velocity.y = particle.velocity.y + field.y * DT;
-  particle->velocity.z = particle.velocity.z + field.z * DT;
+__device__ void updateVelocity(Particle *particle, float3 devField) {
+  particle->velocity.x = particle->velocity.x + devField.x * DT;
+  particle->velocity.y = particle->velocity.y + devField.y * DT;
+  particle->velocity.z = particle->velocity.z + devField.z * DT;
 
 }
 
 __host__ void updateVelocityHost(Particle *particle) {
-  particle->velocity.x = particle.velocity.x + field.x * DT;
-  particle->velocity.y = particle.velocity.y + field.y * DT;
-  particle->velocity.z = particle.velocity.z + field.z * DT;
+  particle->velocity.x = particle->velocity.x + field.x * DT;
+  particle->velocity.y = particle->velocity.y + field.y * DT;
+  particle->velocity.z = particle->velocity.z + field.z * DT;
 
 }
 
-__global__ void simulateParticlesKernel(Particle *particles,
+__global__ void simulateParticlesKernel(Particle *particles, float3 field,
     int num_particles, int num_iterations) {
 
 	// Unique ID of the current thread to determine what work to compute
 	int threadId = blockIdx.x * blockDim.x + threadIdx.x;
 
 	// This thread has no work to do, exit
-	if (threadId > n) return;
+	if (threadId > num_particles) return;
 
   // Get the right particle
   Particle *particle = particles + threadId;
 
   for (int i = 0; i < num_iterations; ++i) {
     // Update velocity first
-    updateVelocity(particle);
+    updateVelocity(particle, field);
 
     // Update position
     updatePosition(particle);
@@ -69,7 +72,7 @@ __host__ void simulateParticlesHost(Particle *particles,
   
   for (Particle *particle = particles;
       particle < particles + num_particles;
-      particles++) {
+      particle++) {
     for (int i = 0; i < num_iterations; ++i) {
       // Update velocity first
       updateVelocityHost(particle);
@@ -110,7 +113,7 @@ void populateParticleArray(Particle *particles, int n) {
  * @param hostOut	Outcome of simulation from the host implementation
  * @param n			The size of deviceOut and hostOut
  */
-void compareSimulationResults(float *deviceOut, float *hostOut, int n) {
+void compareSimulationResults(Particle *deviceOut, Particle *hostOut, int n) {
 	bool resultsAreEqual = true;
 	printf("Comparing the output for each implementation... ");
 
@@ -152,6 +155,7 @@ double cpuSecond() {
 // the results
 int main(int argc, char **argv) {
   if (argc != 3) {
+    printf("Usage: %s <num_particles> <block_size>\n", argv[0]);
     exit(-1);
   } else {
     NUM_PARTICLES = atoi(argv[1]);
@@ -159,7 +163,7 @@ int main(int argc, char **argv) {
   }
 
 	// Allocate memory on the host
-	Particle *hostParitcles = (Particles *) malloc(NUM_PARTICLES * sizeof(Particle));
+	Particle *hostParitcles = (Particle *) malloc(NUM_PARTICLES * sizeof(Particle));
 
 	// Allocate memory on the device
 	Particle *devParticles;
@@ -171,16 +175,16 @@ int main(int argc, char **argv) {
 	// Copy hostParitcles onto the GPU
 	cudaMemcpy(devParticles, hostParitcles, NUM_PARTICLES * sizeof(Particle), cudaMemcpyHostToDevice);
 
-	printf("Simulating particles on the CPU... ");
+	printf("Simulating particles on the CPU...\n");
 	double startTime = cpuSecond();
-  simulateParticlesHost(hostParticles, NUM_PARTICLES, NUM_ITERATIONS);
+  simulateParticlesHost(hostParitcles, NUM_PARTICLES, NUM_ITERATIONS);
 	printf("%f seconds\n", cpuSecond() - startTime);
 
 	printf("Simulating particles on the GPU... ");
 	startTime = cpuSecond();
 	// Round-up to the nearest multiple of BLOCK_SIZE that can hold at least NUM_PARTICLES
 	// threads
-	simulateParticlesKernel <<<(NUM_PARTICLES + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>> (devParticles, NUM_PARTICLES, NUM_ITERATIONS);
+	simulateParticlesKernel <<<(NUM_PARTICLES + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>> (devParticles, field, NUM_PARTICLES, NUM_ITERATIONS);
 	
 	// Wait until all the threads on the GPU have finished before continuing!!!
 	cudaDeviceSynchronize();
@@ -188,7 +192,7 @@ int main(int argc, char **argv) {
 
 	// Copy the result of the simulation on the device back to
   // the host into hostParitcles
-  Particles *particlesFromGPU = malloc(NUM_PARTICLES * sizeof(Particle));
+  Particle *particlesFromGPU = (Particle *) malloc(NUM_PARTICLES * sizeof(Particle));
 	cudaMemcpy(particlesFromGPU, devParticles, NUM_PARTICLES * sizeof(Particle), cudaMemcpyDeviceToHost);
 
 	// Compare the results of simulation on device and host
