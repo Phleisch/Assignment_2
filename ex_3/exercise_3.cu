@@ -7,42 +7,42 @@ int NUM_PARTICLES;
 int BLOCK_SIZE;
 
 // Gravity field
-float3 field = (0.f, 0.f, 9.8f);
+float3 field = (float3) {0.f, 0.f, 9.8f};
 
 // Structure for the particles
-typedef struc {
+typedef struct {
   float3 position;
   float3 velocity;
 } Particle;
 
 
-__device__ updatePosition(Particle *particle) {
-  particle.position.x = particle.position.x + particle.velocity.x * DT;
-  particle.position.y = particle.position.y + particle.velocity.y * DT;
-  particle.position.z = particle.position.z + particle.velocity.z * DT;
+__device__ void updatePosition(Particle *particle) {
+  particle->position.x = particle.position.x + particle.velocity.x * DT;
+  particle->position.y = particle.position.y + particle.velocity.y * DT;
+  particle->position.z = particle.position.z + particle.velocity.z * DT;
 }
 
-__host__ updatePositionHost(Particle *particle) {
-  particle.position.x = particle.position.x + particle.velocity.x * DT;
-  particle.position.y = particle.position.y + particle.velocity.y * DT;
-  particle.position.z = particle.position.z + particle.velocity.z * DT;
+__host__ void updatePositionHost(Particle *particle) {
+  particle->position.x = particle.position.x + particle.velocity.x * DT;
+  particle->position.y = particle.position.y + particle.velocity.y * DT;
+  particle->position.z = particle.position.z + particle.velocity.z * DT;
 }
 
-__device__ updateVelocity(Particle *particle) {
-  particle.velocity.x = particle.velocity.x + field.x * DT;
-  particle.velocity.y = particle.velocity.y + field.y * DT;
-  particle.velocity.z = particle.velocity.z + field.z * DT;
-
-}
-
-__host__ updateVelocityHost(Particle *particle) {
-  particle.velocity.x = particle.velocity.x + field.x * DT;
-  particle.velocity.y = particle.velocity.y + field.y * DT;
-  particle.velocity.z = particle.velocity.z + field.z * DT;
+__device__ void updateVelocity(Particle *particle) {
+  particle->velocity.x = particle.velocity.x + field.x * DT;
+  particle->velocity.y = particle.velocity.y + field.y * DT;
+  particle->velocity.z = particle.velocity.z + field.z * DT;
 
 }
 
-__global__ simulateParticlesKernel(Particle *particles,
+__host__ void updateVelocityHost(Particle *particle) {
+  particle->velocity.x = particle.velocity.x + field.x * DT;
+  particle->velocity.y = particle.velocity.y + field.y * DT;
+  particle->velocity.z = particle.velocity.z + field.z * DT;
+
+}
+
+__global__ void simulateParticlesKernel(Particle *particles,
     int num_particles, int num_iterations) {
 
 	// Unique ID of the current thread to determine what work to compute
@@ -64,7 +64,7 @@ __global__ simulateParticlesKernel(Particle *particles,
 }
 
 
-__host__ simulateParticlesHost(Particle *particles,
+__host__ void simulateParticlesHost(Particle *particles,
     int num_particles, int num_iterations) {
   
   for (Particle *particle = particles;
