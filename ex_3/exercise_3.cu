@@ -154,13 +154,20 @@ double cpuSecond() {
 // Entry point into the program, run each implementation of simulation and compare
 // the results
 int main(int argc, char **argv) {
-  if (argc != 3) {
-    printf("Usage: %s <num_particles> <block_size>\n", argv[0]);
+  char *file_path;
+  FILE *out_file = 0;
+  if (argc != 3 && argc != 4) {
+    printf("Usage: %s <num_particles> <block_size> [output_file]\n", argv[0]);
     exit(-1);
   } else {
     NUM_PARTICLES = atoi(argv[1]);
     BLOCK_SIZE = atoi(argv[2]);
+    if (argc == 4)
+      file_path = argv[3];
   }
+
+  if (file_path)
+    out_file = fopen(file_path, "a");
 
 	// Allocate memory on the host
 	Particle *hostParitcles = (Particle *) malloc(NUM_PARTICLES * sizeof(Particle));
@@ -175,10 +182,16 @@ int main(int argc, char **argv) {
 	// Copy hostParitcles onto the GPU
 	cudaMemcpy(devParticles, hostParitcles, NUM_PARTICLES * sizeof(Particle), cudaMemcpyHostToDevice);
 
-	printf("Simulating particles on the CPU...\n");
-	double startTime = cpuSecond();
-  simulateParticlesHost(hostParitcles, NUM_PARTICLES, NUM_ITERATIONS);
-	printf("%f seconds\n", cpuSecond() - startTime);
+  double startTime = cpuSecond();
+
+  if (NUM_PARTICLES < 100001) {
+    printf("Simulating particles on the CPU...\n");
+    simulateParticlesHost(hostParitcles, NUM_PARTICLES, NUM_ITERATIONS);
+    if (out_file)
+      fprintf(out_file, "cpu,%d,%d,%d,%f\n", NUM_PARTICLES, BLOCK_SIZE, NUM_ITERATIONS,
+          cpuSecond() - startTime);
+    printf("%f seconds\n", cpuSecond() - startTime);
+  }
 
 	printf("Simulating particles on the GPU... ");
 	startTime = cpuSecond();
@@ -188,6 +201,9 @@ int main(int argc, char **argv) {
 	
 	// Wait until all the threads on the GPU have finished before continuing!!!
 	cudaDeviceSynchronize();
+  if (out_file)
+    fprintf(out_file, "gpu,%d,%d,%d,%f\n", NUM_PARTICLES, BLOCK_SIZE, NUM_ITERATIONS,
+        cpuSecond() - startTime);
 	printf("%f seconds\n", cpuSecond() - startTime);
 
 	// Copy the result of the simulation on the device back to
@@ -202,6 +218,8 @@ int main(int argc, char **argv) {
 	free(hostParitcles);
 	free(particlesFromGPU);
 	cudaFree(devParticles);
+  if (file_path)
+    fclose(out_file);
 
 	return 0;
 
