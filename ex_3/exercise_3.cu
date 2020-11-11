@@ -5,9 +5,8 @@
 #define ABS(a) ((a) < 0 ? -(a) : (a))
 #define DT 1
 
-// Constants
-int NUM_PARTICLES;
-int BLOCK_SIZE;
+int NUM_PARTICLES;	// # of particles to simulate, equivalent to # of threads
+int BLOCK_SIZE;		// Threads PER block
 
 // Gravity field
 float3 field = (float3) {0.f, 0.f, 9.8f};
@@ -18,33 +17,45 @@ typedef struct {
   float3 velocity;
 } Particle;
 
-
-__device__ void updatePosition(Particle *particle) {
+/**
+ * Can use multiple qualifiers to specify where a function will run in order
+ * to reuse code that needs to be run on both host and device.
+ * Change the position of the given particle based on its velocity using the
+ * formula `new_position.coord = old_position.coord + velocity.coord` where
+ * coord is x, y and z.
+ *
+ * @param particle	Particle for which a position update will be performed
+ */
+__host__ __device__ void updatePosition(Particle *particle) {
   particle->position.x = particle->position.x + particle->velocity.x * DT;
   particle->position.y = particle->position.y + particle->velocity.y * DT;
   particle->position.z = particle->position.z + particle->velocity.z * DT;
 }
 
-__host__ void updatePositionHost(Particle *particle) {
-  particle->position.x = particle->position.x + particle->velocity.x * DT;
-  particle->position.y = particle->position.y + particle->velocity.y * DT;
-  particle->position.z = particle->position.z + particle->velocity.z * DT;
-}
-
-__device__ void updateVelocity(Particle *particle, float3 devField) {
-  particle->velocity.x = particle->velocity.x + devField.x * DT;
-  particle->velocity.y = particle->velocity.y + devField.y * DT;
-  particle->velocity.z = particle->velocity.z + devField.z * DT;
-
-}
-
-__host__ void updateVelocityHost(Particle *particle) {
+/**
+ * Update the velocity of the given particle according to a field that specifies
+ * the rate of change for each dimension of the particle's velocity
+ *
+ * @param particle	Particle for which a velocity update will be performed
+ * @param field		Rate of change for each dimension (x, y, z) of a velocity
+ */
+__host__ __device__ void updateVelocity(Particle *particle, float3 field) {
   particle->velocity.x = particle->velocity.x + field.x * DT;
   particle->velocity.y = particle->velocity.y + field.y * DT;
   particle->velocity.z = particle->velocity.z + field.z * DT;
 
 }
 
+/**
+ * Device implementation for the simulation of moving particles
+ *
+ * @param particles			List of particles for which to simulate movement
+ * @param field				Values specifying the rate of change for a
+ *							particle's velocity in each dimension
+ * @param num_particles		# of particles, used to determine how many threads
+ *							to give work if too many threads are initiated
+ * @param num_iterations	# of timesteps a thread should simulate a particle
+ */
 __global__ void simulateParticlesKernel(Particle *particles, float3 field,
     int num_particles, int num_iterations) {
 
@@ -66,7 +77,13 @@ __global__ void simulateParticlesKernel(Particle *particles, float3 field,
   }
 }
 
-
+/**
+ * Host implementation for the simulation of moving particles
+ *
+ * @param particles			List of particles for which to simulate movement
+ * @param num_particles		# of particles to simulate
+ * @param num_iterations	# of timesteps for which to simulate each particle
+ */
 __host__ void simulateParticlesHost(Particle *particles,
     int num_particles, int num_iterations) {
   
@@ -75,10 +92,10 @@ __host__ void simulateParticlesHost(Particle *particles,
       particle++) {
     for (int i = 0; i < num_iterations; ++i) {
       // Update velocity first
-      updateVelocityHost(particle);
+      updateVelocity(particle, field);
 
       // Update position
-      updatePositionHost(particle);
+      updatePosition(particle);
     }
   }
 }
@@ -104,7 +121,6 @@ void populateParticleArray(Particle *particles, int n) {
 		particles[index] = particle;
 	}
 }
-
 
 /**
  * Compare the simulation results of the device and host implementations.
